@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡単仕訳ツール for フリーウェイ経理Lite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2.0.0/encoding.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .tab-button.active { border-color: #3b82f6; color: #3b82f6; font-weight: 600; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .modal-content { max-height: 80vh; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
+        .page-loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 2rem auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .fab { position: fixed; bottom: 2rem; right: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1); z-index: 40; transition: all 0.3s; }
+        .fab:hover { transform: scale(1.05); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); }
+        .fab:active { transform: scale(0.95); }
+        @media screen and (max-width: 767px) {
+            .fab { bottom: 5rem; right: 1.5rem; }
+            .responsive-table thead { border: none; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
+            .responsive-table tbody, .responsive-table tr { display: block; width: 100%; }
+            .responsive-table tr { margin-bottom: 1rem; background-color: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07); }
+            .responsive-table tr:last-child { margin-bottom: 0; }
+            .responsive-table td { display: flex; justify-content: space-between; align-items: baseline; text-align: right; padding: 0.6rem 0; border-bottom: 1px dashed #e5e7eb; }
+            .responsive-table td:last-child { border-bottom: none; padding-top: 0.75rem; padding-bottom: 0; justify-content: flex-end; }
+            .responsive-table td::before { content: attr(data-label); font-weight: 600; text-align: left; padding-right: 1rem; color: #475569; flex-shrink: 0; }
+            .responsive-table td > span { word-break: break-word; text-align: right; }
+            .responsive-table td.no-cell::before { content: "No."; }
+        }
+        .category-drilldown:hover { text-decoration: underline; color: #2563eb; cursor: pointer; }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 pb-24">
+
+    <div id="login-modal" class="fixed inset-0 bg-slate-900 bg-opacity-95 z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center transition-all duration-300" id="login-container">
+            <div class="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i data-lucide="lock" class="h-8 w-8 text-blue-600"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">ログイン</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <input type="email" id="login-email" placeholder="メールアドレス" required autocomplete="username" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <div class="relative">
+                    <input type="password" id="login-password" placeholder="パスワード" required autocomplete="current-password" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 pr-10 focus:ring-2 focus:ring-blue-500 text-sm">
+                    <button type="button" id="toggle-password" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none" tabindex="-1">
+                        <span id="eye-wrapper"><i data-lucide="eye" class="h-5 w-5"></i></span>
+                        <span id="eye-off-wrapper" class="hidden"><i data-lucide="eye-off" class="h-5 w-5"></i></span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-start">
+                    <div class="flex items-center h-5">
+                        <input id="remember-me" type="checkbox" class="w-4 h-4 border border-slate-300 rounded bg-slate-50 focus:ring-3 focus:ring-blue-300 cursor-pointer">
+                    </div>
+                    <label for="remember-me" class="ml-2 text-sm font-medium text-slate-900 cursor-pointer">次回から自動ログイン</label>
+                </div>
+                <div id="login-error" class="text-red-500 text-xs hidden font-bold">メールアドレスまたはパスワードが違います</div>
+                <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2">
+                    <span class="btn-text">ログイン</span>
+                </button>
+            </form>
+        </div>
+        <div id="auto-login-loader" class="hidden flex-col items-center justify-center text-white">
+            <div class="page-loader border-white border-t-blue-500 mb-4"></div>
+            <p class="font-bold text-lg">自動ログイン中...</p>
+        </div>
+    </div>
+
+    <div id="app" class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 hidden">
+        <header class="mb-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="calculator" class="h-8 w-8 text-blue-600"></i>
+                        簡単仕訳ツール
+                    </h1>
+                    <p class="text-xs md:text-sm text-slate-500 mt-1">フリーウェイ経理Lite対応 / 日々の取引をシンプルに記録</p>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button id="header-add-btn" class="sm:hidden bg-blue-600 text-white p-2 rounded-lg flex items-center justify-center shadow-sm hover:bg-blue-700 transition mr-1" title="新しい取引を追加"><i data-lucide="plus" class="h-5 w-5"></i></button>
+                    <div class="flex-grow sm:flex-grow-0">
+                        <select id="year-selector" class="w-full bg-white border border-slate-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm"></select>
+                    </div>
+                    <button id="logout-btn" class="flex items-center gap-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-red-600 font-medium py-2 px-3 rounded-lg transition text-sm shadow-sm" title="ログアウト"><i data-lucide="log-out" class="h-4 w-4"></i></button>
+                    <button id="help-btn" class="flex items-center gap-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800 font-medium py-2 px-3 rounded-lg transition text-sm shadow-sm"><i data-lucide="help-circle" class="h-4 w-4"></i> <span class="hidden sm:inline">ヘルプ</span></button>
+                </div>
+            </div>
+            <div id="status-display" class="mt-2 text-xs text-slate-500 text-right h-auto min-h-[1rem]">初期化待機中...</div>
+        </header>
+
+        <div class="mb-6">
+            <div class="relative max-w-lg">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i data-lucide="search" class="h-4 w-4 text-slate-400"></i>
+                </div>
+                <input type="text" id="search-box" placeholder="摘要・金額で検索..." class="w-full bg-white border border-slate-300 rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 shadow-sm transition">
+            </div>
+        </div>
+
+        <div class="border-b border-slate-200 mb-6">
+           <nav class="flex space-x-4 overflow-x-auto" aria-label="Tabs">
+                <button id="tab-spreadsheet" class="tab-button active py-3 px-1 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:border-slate-300 hover:text-slate-700 transition flex-shrink-0">入力データ</button>
+                <button id="tab-tax" class="tab-button py-3 px-1 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:border-slate-300 hover:text-slate-700 transition flex-shrink-0 text-blue-600 font-bold"><i data-lucide="file-text" class="h-4 w-4 inline mr-1"></i>確定申告ダッシュボード</button>
+                <button id="tab-journal" class="tab-button py-3 px-1 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:border-slate-300 hover:text-slate-700 transition flex-shrink-0">Freeway仕訳プレビュー</button>
+                <button id="tab-summary" class="tab-button py-3 px-1 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:border-slate-300 hover:text-slate-700 transition flex-shrink-0">集計レポート</button>
+                <button id="tab-csv" class="tab-button py-3 px-1 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:border-slate-300 hover:text-slate-700 transition flex-shrink-0">Freeway用CSV出力</button>
+            </nav>
+        </div>
+
+        <div id="content-area">
+            <div id="spreadsheet-view">
+                <div class="flex flex-col sm:flex-row gap-3 mb-4 items-start sm:items-center justify-between bg-slate-100 p-3 rounded-lg">
+                    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                        <span class="text-xs font-semibold text-slate-500 uppercase flex-shrink-0">表示:</span>
+                        <div class="flex bg-white rounded-md shadow-sm p-1">
+                            <button class="view-mode-btn active px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="list">リスト</button>
+                            <button class="view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="monthly">月別</button>
+                            <button class="view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="business">事業別</button>
+                            <button class="view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="category">カテゴリ</button>
+                            <button class="view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="method">支払方法</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <div class="flex items-center gap-1">
+                            <i data-lucide="filter" class="h-3 w-3 text-slate-400"></i>
+                            <select id="filter-category" class="text-xs bg-white border border-slate-300 rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-blue-500 max-w-[140px]">
+                                <option value="">全カテゴリ</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <i data-lucide="arrow-up-down" class="h-3 w-3 text-slate-400"></i>
+                            <select id="sort-order" class="text-xs bg-white border border-slate-300 rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-blue-500">
+                                <option value="date_desc">日付 (新しい順)</option>
+                                <option value="date_asc">日付 (古い順)</option>
+                                <option value="input_desc">入力 (新しい順)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="total-sum-container" class="hidden bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-4 flex justify-between items-center shadow-sm">
+                    <span class="font-bold text-sm flex items-center gap-2">
+                        <i data-lucide="calculator" class="h-4 w-4"></i> 表示中の合計金額
+                    </span>
+                    <span class="text-xl font-mono font-bold">¥<span id="total-sum-amount">0</span></span>
+                </div>
+                <div id="transactions-container" class="space-y-6"></div>
+            </div>
+
+            <div id="tax-view" class="hidden">
+                <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6">
+                    <h3 class="text-blue-800 font-bold mb-2 flex items-center gap-2"><i data-lucide="info" class="h-5 w-5"></i> 確定申告用（青色申告決算書）データ</h3>
+                    <p class="text-sm text-blue-700">この画面は申告書の転記用に特化しています。「事業主貸・借」や「資金移動」は除外され、正式な勘定科目名で集計されます。</p>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-3 mb-4 items-start sm:items-center justify-between bg-slate-100 p-3 rounded-lg">
+                    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                        <span class="text-xs font-semibold text-slate-500 uppercase flex-shrink-0">表示:</span>
+                        <div class="flex bg-white rounded-md shadow-sm p-1">
+                            <button class="tax-view-mode-btn active px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="list">リスト</button>
+                            <button class="tax-view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="monthly">月別</button>
+                            <button class="tax-view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="business">事業別</button>
+                            <button class="tax-view-mode-btn px-3 py-1 text-xs font-medium rounded text-slate-600 hover:bg-slate-50" data-mode="category">科目別</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <div class="flex items-center gap-1">
+                            <i data-lucide="filter" class="h-3 w-3 text-slate-400"></i>
+                            <select id="tax-filter-category" class="text-xs bg-white border border-slate-300 rounded-md py-1 pl-2 pr-6 focus:ring-1 focus:ring-blue-500 max-w-[140px]">
+                                <option value="">全科目</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tax-total-sum-container" class="hidden bg-white border border-slate-200 px-4 py-3 rounded-lg mb-4 flex justify-between items-center shadow-sm"></div>
+
+                <div id="tax-transactions-container" class="space-y-6"></div>
+            </div>
+
+            <div id="journal-view" class="hidden">
+                <div class="bg-blue-50 p-3 rounded-lg mb-4 text-xs text-blue-700">
+                    <i data-lucide="info" class="h-3 w-3 inline mr-1"></i>
+                    事業用クレジットカードの決済は、年内に引き落としが完了する場合は「普通預金」扱い、年をまたぐ場合（翌年引落）は「未払金」として自動判定されます（チェックボックスで手動変更も可能）。
+                </div>
+                <div class="md:bg-white md:rounded-2xl md:shadow-sm md:overflow-hidden">
+                    <div class="md:overflow-x-auto">
+                        <table class="responsive-table w-full text-sm md:text-left text-slate-500">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 w-20 text-center">No.</th>
+                                    <th scope="col" class="px-6 py-3">取引日</th>
+                                    <th scope="col" class="px-6 py-3">借方勘定科目</th>
+                                    <th scope="col" class="px-6 py-3 text-right">借方金額</th>
+                                    <th scope="col" class="px-6 py-3">貸方勘定科目</th>
+                                    <th scope="col" class="px-6 py-3 text-right">貸方金額</th>
+                                    <th scope="col" class="px-6 py-3">摘要</th>
+                                    <th scope="col" class="px-6 py-3 text-center">未払計上</th>
+                                </tr>
+                            </thead>
+                            <tbody id="journal-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="summary-view" class="hidden">
+                <div class="mb-6 border-b border-slate-200">
+                    <nav id="summary-business-filter" class="flex space-x-2 sm:space-x-4">
+                        <button data-business="全体" class="summary-filter-btn tab-button active py-3 px-2 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:text-slate-700 transition">全体</button>
+                        <button data-business="豆腐体験事業" class="summary-filter-btn tab-button py-3 px-2 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:text-slate-700 transition">豆腐体験事業</button>
+                        <button data-business="動画・玩具小売事業" class="summary-filter-btn tab-button py-3 px-2 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:text-slate-700 transition">動画・玩具小売事業</button>
+                        <button data-business="プライベート" class="summary-filter-btn tab-button py-3 px-2 border-b-2 font-medium text-sm text-slate-500 border-transparent hover:text-slate-700 transition">プライベート</button>
+                    </nav>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm md:col-span-2">
+                        <h3 class="text-sm font-bold uppercase text-slate-500 mb-4">月別収支サマリー</h3>
+                        <div id="monthly-summary-container" class="overflow-x-auto"></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm">
+                        <h3 class="text-sm font-bold uppercase text-slate-500 mb-4">経費カテゴリ内訳</h3>
+                        <div id="category-summary-container" class="overflow-x-auto"></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm">
+                        <h3 class="text-sm font-bold uppercase text-slate-500 mb-4">事業別収支</h3>
+                        <div id="business-summary-container" class="overflow-x-auto"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="csv-view" class="hidden">
+                <div class="bg-white p-8 rounded-2xl shadow-sm text-center max-w-2xl mx-auto mt-8">
+                    <div class="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="file-spreadsheet" class="h-8 w-8 text-green-600"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2 text-slate-900">CSVエクスポート</h3>
+                    <p class="text-slate-600 mb-8">現在表示中の年度（<span id="csv-year-display" class="font-bold"></span>年度）のデータを、<br>フリーウェイ経理Liteインポート形式でダウンロードします。</p>
+                    <button id="export-csv-btn" class="w-full sm:w-auto bg-green-600 text-white font-bold py-3 px-8 rounded-full hover:bg-green-700 shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 mx-auto">
+                        <i data-lucide="download" class="h-5 w-5"></i> CSVをダウンロード
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button id="fab" class="fab bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-300 shadow-xl" title="新しい取引を追加"><i data-lucide="plus" class="h-8 w-8"></i></button>
+    
+    <div id="input-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50 transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto transform transition-all scale-100">
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2"><i data-lucide="pen-tool" class="h-5 w-5 text-blue-500"></i> 新しい取引を追加</h2>
+                <button id="close-input-modal" class="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition"><i data-lucide="x" class="h-6 w-6"></i></button>
+            </div>
+            
+            <form id="transaction-form" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+                    <div class="lg:col-span-3">
+                        <label for="date" class="block text-xs font-bold uppercase text-slate-500 mb-1">取引日 (発生日)</label>
+                        <input type="date" id="date" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label for="amount" class="block text-xs font-bold uppercase text-slate-500 mb-1">金額</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-slate-400">¥</span>
+                            <input type="number" id="amount" placeholder="0" required min="0" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 pl-7 focus:ring-2 focus:ring-blue-500 font-mono text-right">
+                        </div>
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label for="type" class="block text-xs font-bold uppercase text-slate-500 mb-1">種類</label>
+                        <select id="type" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500">
+                            <option value="expense">経費 (支出)</option>
+                            <option value="income">収入 (売上)</option>
+                            <option value="transfer">資金移動・回収 (売掛金など)</option>
+                            <option value="owner_lending">事業主貸 (生活費へ)</option>
+                            <option value="owner_borrowing">事業主借 (個人から)</option>
+                            <option value="reclass">他勘定振替 (仕入から経費へ)</option>
+                        </select>
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label for="business" class="block text-xs font-bold uppercase text-slate-500 mb-1">事業区分</label>
+                        <select id="business" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div class="lg:col-span-6 sm:col-span-2">
+                        <label for="description" class="block text-xs font-bold uppercase text-slate-500 mb-1">摘要 (内容)</label>
+                        <input type="text" id="description" placeholder="例: 大豆購入、シェアキッチン利用料" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div id="category-wrapper" class="lg:col-span-3 sm:col-span-1">
+                        <label for="category" class="block text-xs font-bold uppercase text-slate-500 mb-1">カテゴリ</label>
+                        <select id="category" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                    <div class="lg:col-span-3 sm:col-span-1">
+                        <label for="method" id="method-label" class="block text-xs font-bold uppercase text-slate-500 mb-1">支払方法</label>
+                        <select id="method" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"></select>
+                    </div>
+                </div>
+
+                <div id="apportionment-container" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <h4 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                        <i data-lucide="calculator" class="h-4 w-4"></i> 家事按分計算アシスタント
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                        <div>
+                            <label for="apportion-total-amount" class="block text-xs text-slate-500 mb-1">支払総額</label>
+                            <input type="number" id="apportion-total-amount" placeholder="10000" class="w-full bg-white border border-slate-300 rounded-lg p-2">
+                        </div>
+                        <div>
+                            <label for="apportion-basis" class="block text-xs text-slate-500 mb-1">計算基準</label>
+                            <select id="apportion-basis" class="w-full bg-white border border-slate-300 rounded-lg p-2">
+                                <option value="時間">時間</option>
+                                <option value="面積">面積</option>
+                                <option value="日数">日数</option>
+                                <option value="その他">割合(%)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="apportion-total-usage" class="block text-xs text-slate-500 mb-1">全体量 (<span id="apportion-unit">h</span>)</label>
+                            <input type="number" id="apportion-total-usage" placeholder="100" class="w-full bg-white border border-slate-300 rounded-lg p-2">
+                        </div>
+                        <div>
+                            <label for="apportion-business-usage" class="block text-xs text-slate-500 mb-1">事業分 (<span id="apportion-unit2">h</span>)</label>
+                            <input type="number" id="apportion-business-usage" placeholder="30" class="w-full bg-white border border-slate-300 rounded-lg p-2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-4 border-t border-slate-100">
+                    <button type="button" id="cancel-input" class="mr-3 px-6 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition">キャンセル</button>
+                    <button type="submit" id="submit-button" class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 transition flex items-center">
+                        <span class="btn-text">追加する</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2"><i data-lucide="edit-3" class="h-5 w-5 text-blue-600"></i> 取引の編集</h3>
+            <form id="edit-transaction-form" class="space-y-6">
+                <input type="hidden" id="edit-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+                    <div class="lg:col-span-3">
+                        <label for="edit-date" class="block text-xs font-bold uppercase text-slate-500 mb-1">取引日 (発生日)</label>
+                        <input type="date" id="edit-date" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5">
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label for="edit-amount" class="block text-xs font-bold uppercase text-slate-500 mb-1">金額</label>
+                        <input type="number" id="edit-amount" required min="0" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 font-mono text-right">
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label for="edit-type" class="block text-xs font-bold uppercase text-slate-500 mb-1">種類</label>
+                        <select id="edit-type" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5"></select>
+                    </div>
+                    <div class="lg:col-span-3">
+                        <label for="edit-business" class="block text-xs font-bold uppercase text-slate-500 mb-1">事業区分</label>
+                        <select id="edit-business" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5"></select>
+                    </div>
+                    <div class="lg:col-span-6 sm:col-span-2">
+                        <label for="edit-description" class="block text-xs font-bold uppercase text-slate-500 mb-1">摘要</label>
+                        <input type="text" id="edit-description" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5">
+                    </div>
+                    <div id="edit-category-wrapper" class="lg:col-span-3 sm:col-span-1">
+                        <label for="edit-category" class="block text-xs font-bold uppercase text-slate-500 mb-1">カテゴリ</label>
+                        <select id="edit-category" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5"></select>
+                    </div>
+                    <div class="lg:col-span-3 sm:col-span-1">
+                        <label for="edit-method" id="edit-method-label" class="block text-xs font-bold uppercase text-slate-500 mb-1">支払方法</label>
+                        <select id="edit-method" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5"></select>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-100">
+                    <button type="button" id="cancel-edit" class="px-5 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition">キャンセル</button>
+                    <button type="submit" id="edit-submit-btn" class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition flex items-center">
+                        <span class="btn-text">保存する</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="delete-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="trash-2" class="h-6 w-6 text-red-600"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-2">取引を削除しますか？</h3>
+            <p class="text-slate-600 mb-6 text-sm">この操作は元に戻せません。本当に削除してもよろしいですか？</p>
+            <div class="flex justify-center space-x-3">
+                <button id="cancel-delete" class="px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition">キャンセル</button>
+                <button id="confirm-delete" class="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-md transition flex items-center">
+                    <span class="btn-text">削除する</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="drilldown-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 id="drilldown-title" class="text-xl font-semibold text-slate-900">カテゴリ詳細</h3>
+                    <p id="drilldown-subtitle" class="text-sm text-slate-500 mt-1"></p>
+                </div>
+                <button id="close-drilldown" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="h-6 w-6"></i></button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-slate-500">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                        <tr>
+                            <th class="px-4 py-2">日付</th>
+                            <th class="px-4 py-2">摘要</th>
+                            <th class="px-4 py-2 text-right">金額</th>
+                            <th class="px-4 py-2 text-right">事業</th>
+                        </tr>
+                    </thead>
+                    <tbody id="drilldown-body" class="divide-y divide-slate-200"></tbody>
+                    <tfoot class="bg-slate-50 font-semibold">
+                        <tr>
+                            <td colspan="2" class="px-4 py-2 text-right">合計</td>
+                            <td class="px-4 py-2 text-right font-mono" id="drilldown-total"></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button type="button" id="close-drilldown-btn" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50"><div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"><div class="flex justify-between items-start mb-4"><h3 class="text-xl font-semibold text-slate-900">ヘルプ：カテゴリと勘定科目について</h3><button id="close-help" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button></div><div class="modal-content pr-2"><div class="space-y-6"><div class="bg-blue-50 p-4 rounded-lg"><h4 class="font-semibold text-lg mb-2 text-blue-800">事業経費の分類例</h4><p class="text-sm text-blue-700">あなたの事業に合わせた具体的な経費の分類例です。</p><dl class="mt-3 space-y-2"><div><dt class="font-semibold text-slate-900">・体験用の材料 (大豆、にがり、醤油など)</dt><dd class="text-slate-600 mt-1 text-sm pl-2">**「食品・食材」**や**「調味料」**を選択。会計上は「仕入高」。</dd></div><div><dt class="font-semibold text-slate-900">・動画の小道具・材料 (IPグッズ、ガチャガチャなど)</dt><dd class="text-slate-600 mt-1 text-sm pl-2">動画で使うために購入した物品は**「動画の小道具・材料費（IPグッズなど）」**を選択。会計上は「消耗品費」。</dd></div><div><dt class="font-semibold text-slate-900">・撮影場所代・取材費 (美術館、テーマパークなど)</dt><dd class="text-slate-600 mt-1 text-sm pl-2">撮影やネタ探しのための施設利用料は**「取材・リサーチ費（撮影場所代など）」**を選択。会計上は「取材費」。</dd></div><div><dt class="font-semibold text-slate-900">・旅行費用 (レンタカー、宿泊費など)</dt><dd class="text-slate-600 mt-1 text-sm pl-2">取材や出張のための移動・宿泊費は**「旅費交通費」**を選択。</dd></div><div><dt class="font-semibold text-slate-900">・開業前の費用</dt><dd class="text-slate-600 mt-1 text-sm pl-2">開業のためにかかった費用は**「開業費」**を選択。</dd></div></dl></div><div><h4 class="font-semibold text-lg mb-2 text-slate-800">このツールのカテゴリ解説</h4><p class="text-sm text-slate-600 mb-3">日常的な言葉で選べるカテゴリと、それに対応する正式な「勘定科目」の一覧です。</p><dl id="user-category-help" class="divide-y divide-slate-200"></dl></div><div><h4 class="font-semibold text-lg mb-2 text-slate-800">個人事業主の重要勘定科目</h4><p class="text-sm text-slate-600 mb-3">特に重要な個人事業主特有の勘定科目を解説します。</p><dl class="divide-y divide-slate-200"><div class="py-3"><dt class="font-semibold text-slate-900">事業主貸（じぎょうぬしかし）</dt><dd class="text-slate-600 mt-1">事業用のお金（現金や口座）を、生活費などプライベートな目的で使った場合に使います。「事業のお金を事業主個人に貸した」という意味です。例えば、事業用の口座から生活費を引き出した場合などです。</dd></div><div class="py-3"><dt class="font-semibold text-slate-900">事業主借（じぎょうぬしかり）</dt><dd class="text-slate-600 mt-1">個人のお金を事業の経費として使った場合に使います。「事業が事業主個人からお金を借りた」という意味です。例えば、個人用のクレジットカードで事業の備品を買った場合などです。</dd></div></dl></div></div></div></div></div>
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            const statusDisplay = document.getElementById('status-display');
+            if (statusDisplay) {
+                statusDisplay.innerHTML = `<span class="text-red-500 font-bold">Error: ${message} (Line: ${lineno})</span>`;
+            }
+            console.error('Global Error Caught:', error);
+            return false;
+        };
+
+        function getByteLength(str) {
+            let byteLength = 0;
+            for (let i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                if ((code >= 0x00 && code <= 0x7f) || (code >= 0xff61 && code <= 0xff9f)) {
+                    byteLength += 1;
+                } else {
+                    byteLength += 2;
+                }
+            }
+            return byteLength;
+        }
+        
+        function logDebug(msg) {
+            console.log(`[DEBUG] ${new Date().toLocaleTimeString()} - ${msg}`);
+        }
+
+        // サーバーコール関数
+        function serverCall(functionName, ...args) {
+            return new Promise((resolve, reject) => {
+                if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                    console.warn('Google Apps Script環境ではありません。');
+                    return;
+                }
+
+                logDebug(`[ServerCall] Request: ${functionName}`);
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        logDebug(`[ServerCall] Success: ${functionName}`);
+                        let data = res;
+                        try {
+                            if (typeof res === 'string') {
+                                data = JSON.parse(res);
+                            }
+                        } catch(e) {
+                            console.warn("JSON parse failed, using raw response", e);
+                        }
+                        resolve(data);
+                    })
+                    .withFailureHandler((err) => {
+                        logDebug(`[ServerCall] Failed: ${functionName}`);
+                        console.error('Server Error:', err);
+                        reject(err);
+                    })
+                    [functionName](...args);
+            });
+        }
+
+        let allTransactions = [];
+        let transactionToDeleteId = null;
+        let transactionToEdit = null;
+        let selectedYear = new Date().getFullYear();
+        let selectedBusinessForSummary = '全体';
+        let currentViewMode = 'list'; 
+        let currentSortOrder = 'date_desc';
+
+        const businessTypes = ["共通", "豆腐体験事業", "動画・玩具小売事業", "プライベート"];
+
+        const userFriendlyExpenseCategories = {
+            '食品・食材（大豆など）':{formal:'仕入高'},
+            '調味料（にがり、醤油など）':{formal:'仕入高'},
+            '商品仕入（シール・玩具など）':{formal:'仕入高'}, 
+            '配送・梱包費':{formal:'荷造運賃'},
+            '衛生用品・使い捨て備品':{formal:'消耗品費'},
+            '道具・備品（10万円未満）':{formal:'消耗品費'},
+            'レンタルスペース・シェアキッチン':{formal:'地代家賃'},
+            '取材・リサーチ費（撮影場所代など）':{formal:'取材費'},
+            '動画の小道具・材料費（IPグッズなど）':{formal:'消耗品費'},
+            '機材・ツール（YouTube配信用など）':{formal:'消耗品費'},
+            '旅費交通費（移動、宿泊など）':{formal:'旅費交通費'},
+            '開業費':{formal:'開業費'},
+            '事務用品':{formal:'消耗品費'},
+            '印刷・コピー・スキャン・書類作成代':{formal:'消耗品費'},
+            '書籍・資料代':{formal:'新聞図書費'},
+            '通信費（ネット・スマホ代）':{formal:'通信費'},
+            '事務所・店舗家賃':{formal:'地代家賃'},
+            '水道・光熱費':{formal:'水道光熱費'},
+            '外注・業務委託費':{formal:'外注工賃'},
+            '会議・打ち合わせ代':{formal:'会議費'}, // ★これを目立つ位置に追加
+            '広告・宣伝費':{formal:'広告宣伝費'},
+            '研修・セミナー代':{formal:'研修費'},
+            '手数料（振込など）':{formal:'支払手数料'},
+            '支払利息（借入金など）':{formal:'支払手数料'},
+            '租税公課（収入印紙など）':{formal:'租税公課'},
+            '固定資産売却損・除却損':{formal:'雑費'},
+            '災害損失':{formal:'雑費'},
+            'その他経費':{formal:'雑費'}
+        };
+        const userFriendlyIncomeCategories = {
+        '体験・サービスの売上':{formal:'売上高'}, 
+        '物品販売の売上（シール・玩具）':{formal:'売上高'}, 
+        '広告収入（YouTubeなど）':{formal:'売上高'}, 
+        'アフィリエイト収入（楽天Roomなど）':{formal:'雑収入'}, // ★この行を追加★
+        '預金利息（事業用口座）':{formal:'雑収入'},
+        '補助金・助成金収入':{formal:'雑収入'},
+        '固定資産売却益':{formal:'雑収入'},
+        'その他の雑収入':{formal:'雑収入'}
+        };
+
+        // ▼▼▼ 追加：資金移動用のカテゴリ定義 ▼▼▼
+        const transferCategories = {
+            '売掛金の回収': { formal: '売掛金' },     // [借]普通預金 / [貸]売掛金
+            '事業主への返済': { formal: '事業主借' }, // [借]普通預金 / [貸]事業主借（借りていたお金を返した時など）
+            '資金移動（現金へ）': { formal: '現金' }    // [借]普通預金 / [貸]現金（手持ち現金を預け入れた時など）
+        };
+        // ▲▲▲ 追加ここまで ▲▲▲
+        const reclassMethods = {
+            '仕入（商品・食材など）': '仕入高'
+        };
+
+        const ownerLendingMethods = {'現金':'現金','事業用口座':'普通預金','事業用クレジットカード（楽天）':'未払金'};
+        const ownerBorrowingMethods = {'現金':'現金','事業用口座':'普通預金'};
+        
+        // 支払方法の定義（個人用カードを追加）
+        const paymentMethods = {
+            '現金': '現金',
+            '事業用クレジットカード（楽天）': '未払金',
+            '個人用：三井ショッピングパーク（Master）': '事業主借',
+            '個人用：楽天カード（Master）': '事業主借',
+            '個人用：楽天カード（Visa）': '事業主借',
+            '個人用：三菱UFJ（Master）': '事業主借',
+            '事業用口座': '普通預金',
+            'プライベート資金': '事業主借'
+        };
+        
+        const depositMethods = {
+        '現金': '現金',
+        '事業用口座': '普通預金',
+        'プライベートへ（事業主貸）': '事業主貸', // ★これを追加します
+        '未回収（翌月以降入金）': '売掛金'
+        };
+        const apportionableCategories = ['水道・光熱費', '事務所・店舗家賃', '通信費（ネット・スマホ代）', '旅費交通費（移動、宿泊など）'];
+        // 【修正後】
+        const accountCodeMap = { '現金': '1100', '売掛金': '1160', '普通預金': '1120', '未払金': '4140', '事業主借': '7320', '事業主貸': '3180', '売上高': '8000', '雑収入': '8790', '仕入高': '8201', '外注工賃': '8226', '地代家賃': '8510', '水道光熱費': '8540', '旅費交通費': '8410', '通信費': '8420', '広告宣伝費': '8450', '研修費': '8562', '消耗品費': '8257', '新聞図書費': '8560', '支払手数料': '8581', '雑費': '8599', '開業費': '3120', '取材費': '8563', '租税公課': '8570', '荷造運賃': '8421', '会議費': '8460', '諸口': '000' };
+        // クレジットカードの締め日・支払日設定（自動判定用）
+        const cardSettings = {
+            '事業用クレジットカード（楽天）': { closingDay: 31, payMonthOffset: 1, payDay: 27 }, // 末日締め、翌月27日払い
+            // 個人用カードの設定（参考用：現状は事業主借で即時決済扱いだが、ロジック自体は保持）
+            '個人用：三井ショッピングパーク（Master）': { closingDay: 10, payMonthOffset: 1, payDay: 4 }, // 10日締め、翌月4日払い
+            '個人用：楽天カード（Master）': { closingDay: 31, payMonthOffset: 1, payDay: 27 },
+            '個人用：楽天カード（Visa）': { closingDay: 31, payMonthOffset: 1, payDay: 27 },
+            '個人用：三菱UFJ（Master）': { closingDay: 15, payMonthOffset: 1, payDay: 10 } // 15日締め、翌月10日払い
+        };
+
+        // DOM Elements
+        const transactionForm = document.getElementById('transaction-form');
+        const dateInput = document.getElementById('date');
+        const typeSelect = document.getElementById('type');
+        const categorySelect = document.getElementById('category');
+        const categoryWrapper = document.getElementById('category-wrapper');
+        const methodSelect = document.getElementById('method');
+        const businessSelect = document.getElementById('business');
+        const methodLabel = document.getElementById('method-label');
+        const journalBody = document.getElementById('journal-body');
+        // ▼「tab-tax」と「tax-view」を2番目に追加しました
+        const tabs = [document.getElementById('tab-spreadsheet'), document.getElementById('tab-tax'), document.getElementById('tab-journal'), document.getElementById('tab-summary'), document.getElementById('tab-csv')];
+        const views = [document.getElementById('spreadsheet-view'), document.getElementById('tax-view'), document.getElementById('journal-view'), document.getElementById('summary-view'), document.getElementById('csv-view')];
+        const yearSelector = document.getElementById('year-selector');
+        const searchBox = document.getElementById('search-box');
+        const deleteModal = document.getElementById('delete-modal'), cancelDeleteBtn = document.getElementById('cancel-delete'), confirmDeleteBtn = document.getElementById('confirm-delete');
+        const helpModal = document.getElementById('help-modal'), helpBtn = document.getElementById('help-btn'), closeHelpBtn = document.getElementById('close-help');
+        const statusDisplay = document.getElementById('status-display');
+        const submitButton = document.getElementById('submit-button');
+        
+        // Edit Elements
+        const editModal = document.getElementById('edit-modal');
+        const editTransactionForm = document.getElementById('edit-transaction-form');
+        const cancelEditBtn = document.getElementById('cancel-edit');
+        const editTypeSelect = document.getElementById('edit-type');
+        const editSubmitBtn = document.getElementById('edit-submit-btn');
+        const editDateInput = document.getElementById('edit-date');
+        const editMethodSelect = document.getElementById('edit-method');
+
+        const exportCsvBtn = document.getElementById('export-csv-btn');
+        const summaryFilterBtns = document.querySelectorAll('.summary-filter-btn');
+        const inputModal = document.getElementById('input-modal');
+        const fab = document.getElementById('fab');
+        const headerAddBtn = document.getElementById('header-add-btn');
+        const closeInputModalBtn = document.getElementById('close-input-modal');
+        const cancelInputBtn = document.getElementById('cancel-input');
+        const viewModeBtns = document.querySelectorAll('.view-mode-btn');
+        const sortOrderSelect = document.getElementById('sort-order');
+        const transactionsContainer = document.getElementById('transactions-container');
+        const apportionmentContainer = document.getElementById('apportionment-container');
+        const apportionmentInputs = ['apportion-total-amount', 'apportion-basis', 'apportion-total-usage', 'apportion-business-usage'];
+        const apportionBasisSelect = document.getElementById('apportion-basis');
+        const apportionTotalUsageInput = document.getElementById('apportion-total-usage');
+        const filterCategorySelect = document.getElementById('filter-category');
+        const drilldownModal = document.getElementById('drilldown-modal');
+        const closeDrilldownBtn = document.getElementById('close-drilldown');
+        const closeDrilldownBtn2 = document.getElementById('close-drilldown-btn');
+        
+        // Login Elements
+        const loginForm = document.getElementById('login-form');
+        const loginModal = document.getElementById('login-modal');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
+        const appDiv = document.getElementById('app');
+        const togglePasswordBtn = document.getElementById('toggle-password');
+        const loginPasswordInput = document.getElementById('login-password');
+        const loginContainer = document.getElementById('login-container');
+        const autoLoginLoader = document.getElementById('auto-login-loader');
+        const rememberMeCheckbox = document.getElementById('remember-me');
+        const logoutBtn = document.getElementById('logout-btn');
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // ログイン処理
+            if (loginForm) {
+                const savedEmail = localStorage.getItem('loginEmail');
+                const savedPassword = localStorage.getItem('loginPassword'); 
+
+                if (savedEmail && savedPassword) {
+                    loginContainer.classList.add('hidden');
+                    autoLoginLoader.classList.remove('hidden');
+                    autoLoginLoader.classList.add('flex');
+                    
+                    serverCall('checkLogin', savedEmail, savedPassword)
+                        .then(isAuthenticated => {
+                            if (isAuthenticated) {
+                                loginModal.classList.add('hidden');
+                                appDiv.classList.remove('hidden');
+                                fetchData();
+                            } else {
+                                localStorage.removeItem('loginEmail');
+                                localStorage.removeItem('loginPassword');
+                                loginContainer.classList.remove('hidden');
+                                autoLoginLoader.classList.remove('flex');
+                                autoLoginLoader.classList.add('hidden');
+                                document.getElementById('login-email').value = savedEmail;
+                            }
+                        })
+                        .catch(() => {
+                            loginContainer.classList.remove('hidden');
+                            autoLoginLoader.classList.remove('flex');
+                            autoLoginLoader.classList.add('hidden');
+                        });
+                }
+
+                loginForm.addEventListener('submit', (e) => {
+                    e.preventDefault(); 
+                    setButtonLoading(loginBtn, true, 'ログイン');
+                    loginError.classList.add('hidden');
+                    
+                    const email = document.getElementById('login-email').value;
+                    const password = document.getElementById('login-password').value;
+                    const isRemember = rememberMeCheckbox.checked;
+                    
+                    serverCall('checkLogin', email, password)
+                        .then(isAuthenticated => {
+                            if (isAuthenticated) {
+                                if (isRemember) {
+                                    localStorage.setItem('loginEmail', email);
+                                    localStorage.setItem('loginPassword', password);
+                                } else {
+                                    localStorage.removeItem('loginEmail');
+                                    localStorage.removeItem('loginPassword');
+                                }
+                                loginModal.classList.add('hidden');
+                                appDiv.classList.remove('hidden');
+                                fetchData();
+                            } else {
+                                loginError.classList.remove('hidden');
+                                loginPasswordInput.value = '';
+                            }
+                        })
+                        .catch(err => {
+                            alert('認証処理中にエラーが発生しました: ' + err.message);
+                        })
+                        .finally(() => {
+                            setButtonLoading(loginBtn, false, 'ログイン');
+                        });
+                });
+            }
+            
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', () => {
+                    if(confirm('ログアウトしますか？')) {
+                        localStorage.removeItem('loginEmail');
+                        localStorage.removeItem('loginPassword');
+                        location.reload(); 
+                    }
+                });
+            }
+
+            try {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            } catch(e) { console.error('Icon init error', e); }
+
+            try {
+                const today = new Date().toISOString().slice(0, 10);
+                dateInput.value = today;
+                
+                updateFormOptions('new');
+                populateBusinessSelects();
+                populateHelpModal();
+                setupAppListeners();
+                
+                if (togglePasswordBtn) {
+                    togglePasswordBtn.addEventListener('click', () => {
+                        const type = loginPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                        loginPasswordInput.setAttribute('type', type);
+                        const eyeWrapper = document.getElementById('eye-wrapper');
+                        const eyeOffWrapper = document.getElementById('eye-off-wrapper');
+                        if (type === 'text') {
+                            eyeWrapper.classList.add('hidden');
+                            eyeOffWrapper.classList.remove('hidden');
+                        } else {
+                            eyeWrapper.classList.remove('hidden');
+                            eyeOffWrapper.classList.add('hidden');
+                        }
+                    });
+                }
+            } catch(e) { console.error('Initialization error:', e); }
+        });
+
+        // ▼▼▼ 追加する関数 ▼▼▼
+        function toggleInputModal(show) {
+            const modal = document.getElementById('input-modal');
+            if (show) {
+                // モーダルを表示
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                // 背面のスクロールを禁止（Tailwindのクラスを追加）
+                document.body.classList.add('overflow-hidden'); 
+            } else {
+                // モーダルを非表示
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                // 背面のスクロール禁止を解除
+                document.body.classList.remove('overflow-hidden');
+            }
+        }
+        // ▲▲▲ 追加ここまで ▲▲▲
+
+        function setupAppListeners() {
+            yearSelector.addEventListener('change', (e) => { 
+                selectedYear = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10); 
+                const csvDisplay = document.getElementById('csv-year-display');
+                if (csvDisplay) csvDisplay.textContent = selectedYear === 'all' ? '全' : selectedYear; 
+                updateDisplay(); 
+            });
+            typeSelect.addEventListener('change', () => updateFormOptions('new'));
+            editTypeSelect.addEventListener('change', () => updateFormOptions('edit'));
+            categorySelect.addEventListener('change', checkApportionmentVisibility);
+            
+            tabs.forEach((tab, i) => tab.addEventListener('click', () => { 
+                tabs.forEach(t => t.classList.remove('active')); 
+                tab.classList.add('active'); 
+                views.forEach(v => v.classList.add('hidden')); 
+                views[i].classList.remove('hidden'); 
+            }));
+            
+            cancelDeleteBtn.addEventListener('click', () => { deleteModal.classList.add('hidden'); deleteModal.classList.remove('flex'); });
+            cancelEditBtn.addEventListener('click', () => { editModal.classList.add('hidden'); editModal.classList.remove('flex'); transactionToEdit = null; });
+            helpBtn.addEventListener('click', () => { helpModal.classList.remove('hidden'); helpModal.classList.add('flex'); });
+            closeHelpBtn.addEventListener('click', () => { helpModal.classList.add('hidden'); helpModal.classList.remove('flex'); });
+            exportCsvBtn.addEventListener('click', generateFreewayCsv);
+            searchBox.addEventListener('input', updateDisplay);
+            summaryFilterBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    summaryFilterBtns.forEach(b => b.classList.remove('active', 'text-blue-600', 'border-b-2', 'border-blue-600'));
+                    btn.classList.add('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
+                    selectedBusinessForSummary = btn.dataset.business;
+                    updateDisplay();
+                });
+            });
+            filterCategorySelect.addEventListener('change', updateDisplay);
+
+            const closeDrilldown = () => { drilldownModal.classList.add('hidden'); drilldownModal.classList.remove('flex'); };
+            closeDrilldownBtn.addEventListener('click', closeDrilldown);
+            closeDrilldownBtn2.addEventListener('click', closeDrilldown);
+            
+            confirmDeleteBtn.addEventListener('click', () => {
+                if (!transactionToDeleteId) return;
+                serverCall('deleteTransaction', transactionToDeleteId)
+                    .then(result => {
+                        if (result.status !== 'success') throw new Error(result.message);
+                        allTransactions = allTransactions.filter(tx => tx.id !== transactionToDeleteId);
+                        updateDisplay();
+                    }).catch(err => alert(err.message));
+                deleteModal.classList.add('hidden'); deleteModal.classList.remove('flex');
+            });
+
+            apportionmentInputs.forEach(id => {
+                document.getElementById(id).addEventListener('input', calculateApportionment);
+            });
+            
+            apportionBasisSelect.addEventListener('change', e => {
+                const basis = e.target.value;
+                let unit = '%';
+                if (basis === '時間') unit = 'h';
+                else if (basis === '面積') unit = 'm²';
+                else if (basis === '日数') unit = '日';
+                document.getElementById('apportion-unit').textContent = unit;
+                document.getElementById('apportion-unit2').textContent = unit;
+
+                if (basis === 'その他') {
+                    apportionTotalUsageInput.value = 100;
+                    apportionTotalUsageInput.readOnly = true;
+                } else {
+                    apportionTotalUsageInput.readOnly = false;
+                }
+                calculateApportionment();
+            });
+
+            // 新しいコード（toggleInputModalを使うように変更）
+            fab.addEventListener('click', () => toggleInputModal(true));
+            headerAddBtn.addEventListener('click', () => toggleInputModal(true));
+            closeInputModalBtn.addEventListener('click', () => toggleInputModal(false));
+            cancelInputBtn.addEventListener('click', () => toggleInputModal(false));
+            
+            viewModeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    viewModeBtns.forEach(b => b.classList.remove('active', 'bg-white', 'shadow-sm', 'text-blue-600'));
+                    btn.classList.add('active', 'bg-white', 'shadow-sm', 'text-blue-600');
+                    currentViewMode = btn.dataset.mode;
+                    updateDisplay();
+                });
+            });
+            // ▼▼▼ ここから追加：確定申告ダッシュボード用のイベントリスナー ▼▼▼
+            window.currentTaxViewMode = 'list'; // 新画面の初期状態
+            const taxViewModeBtns = document.querySelectorAll('.tax-view-mode-btn');
+            taxViewModeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    taxViewModeBtns.forEach(b => b.classList.remove('active', 'bg-white', 'shadow-sm', 'text-blue-600'));
+                    btn.classList.add('active', 'bg-white', 'shadow-sm', 'text-blue-600');
+                    currentTaxViewMode = btn.dataset.mode;
+                    updateDisplay();
+                });
+            });
+            document.getElementById('tax-filter-category').addEventListener('change', updateDisplay);
+            // ▲▲▲ ここまで追加 ▲▲▲
+
+            sortOrderSelect.addEventListener('change', (e) => {
+                currentSortOrder = e.target.value;
+                updateDisplay();
+            });
+            
+            // 新規登録フォーム送信
+            transactionForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const descriptionValue = document.getElementById('description').value;
+                if (descriptionValue.includes(',')) return alert('摘要にカンマ「,」は使用できません。');
+                if (getByteLength(descriptionValue) > 64) return alert('摘要は全角32文字（半角64文字）以内で入力してください。');
+                
+                setButtonLoading(submitButton, true);
+                
+                const currentType = typeSelect.value;
+                const methodValue = methodSelect.value;
+                const dateValue = dateInput.value;
+                
+                // 未払金（年またぎ）の自動判定
+                let isSettledAuto = false;
+                if (currentType === 'expense' || currentType === 'owner_lending') { // ★条件追加
+                    isSettledAuto = calculateSettledStatus(dateValue, methodValue);
+                }
+
+                const newTransaction = {
+                    id: crypto.randomUUID(), 
+                    date: dateValue, 
+                    description: descriptionValue,
+                    is_settled: isSettledAuto, // 自動判定結果を適用
+                    amount: parseInt(document.getElementById('amount').value, 10), 
+                    type: currentType,
+                    category: (currentType === 'expense' || currentType === 'income' || currentType === 'transfer' || currentType === 'reclass') ? categorySelect.value : '',
+                    method: methodValue, 
+                    business: businessSelect.value, 
+                    createdAt: new Date().toISOString(),
+                };
+
+                serverCall('addTransaction', newTransaction)
+                    .then(result => {
+                        if (result.status !== 'success') throw new Error(result.message);
+                        const addedTx = result.addedTransaction;
+                        allTransactions.push(addedTx);
+                        
+                        updateDisplay();
+                        transactionForm.reset();
+                        
+                        const today = new Date().toISOString().slice(0, 10);
+                        dateInput.value = today;
+                        
+                        updateFormOptions();
+                        toggleInputModal(false);
+                    })
+                    .catch(err => {
+                        alert(err.message);
+                    })
+                    .finally(() => {
+                        setButtonLoading(submitButton, false, '追加する');
+                    });
+            });
+
+            // 編集フォーム送信
+            editTransactionForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const editDescriptionValue = document.getElementById('edit-description').value;
+                if (editDescriptionValue.includes(',')) return alert('摘要にカンマ「,」は使用できません。');
+                if (getByteLength(editDescriptionValue) > 64) return alert('摘要は全角32文字（半角64文字）以内で入力してください。');
+
+                setButtonLoading(editSubmitBtn, true);
+
+                const currentEditType = document.getElementById('edit-type').value;
+                const updatedTransaction = {
+                    ...transactionToEdit, 
+                    date: document.getElementById('edit-date').value,
+                    // 編集時は元のis_settledを維持する（手動変更している可能性があるため）
+                    // 日付変更に伴う再判定は複雑になるため今回は実装しない
+                    is_settled: transactionToEdit.is_settled, 
+                    description: editDescriptionValue,
+                    amount: parseInt(document.getElementById('edit-amount').value, 10),
+                    type: currentEditType,
+                    category: (currentEditType === 'expense' || currentEditType === 'income' || currentEditType === 'transfer' || currentEditType === 'reclass') ? document.getElementById('edit-category').value : '',
+                    method: document.getElementById('edit-method').value,
+                    business: document.getElementById('edit-business').value,
+                };
+
+                serverCall('updateTransaction', updatedTransaction)
+                    .then(result => {
+                         if (result.status !== 'success') throw new Error(result.message);
+                        const updatedTx = result.updatedTransaction;
+                        const index = allTransactions.findIndex(tx => tx.id === updatedTx.id);
+                        if(index !== -1) {
+                            allTransactions[index] = updatedTx; 
+                        }
+                        updateDisplay();
+                        editModal.classList.add('hidden'); editModal.classList.remove('flex');
+                        transactionToEdit = null;
+                    })
+                    .catch(err => {
+                        alert(err.message);
+                    })
+                    .finally(() => {
+                        setButtonLoading(editSubmitBtn, false, '保存する');
+                    });
+            });
+
+            // ドリルダウンのイベント
+            document.getElementById('monthly-summary-container').addEventListener('click', e => {
+                const drilldownTarget = e.target.closest('.category-drilldown');
+                if(drilldownTarget) {
+                    showDrilldown(drilldownTarget.dataset.month, drilldownTarget.dataset.category, drilldownTarget.dataset.type);
+                    return;
+                }
+
+                const row = e.target.closest('.monthly-summary-row');
+                if (!row) return;
+
+                const month = row.dataset.month;
+                const detailRow = document.querySelector(`.month-detail-row[data-detail-month="${month}"]`);
+                const icon = row.querySelector('.expand-icon');
+
+                if (detailRow) {
+                    const isHidden = detailRow.classList.toggle('hidden');
+                    if(isHidden) {
+                        icon.classList.remove('rotate-45');
+                    } else {
+                        icon.classList.add('rotate-45');
+                    }
+                }
+            });
+        }
+
+        // 未払金（年またぎ）判定ロジック
+        function calculateSettledStatus(dateStr, method) {
+            // 事業用カード以外は常にfalse（即時決済扱い）
+            // 個人用カードは「事業主借」になるため未払金は発生しない
+            if (method !== '事業用クレジットカード（楽天）') {
+                return false; 
+            }
+
+            const setting = cardSettings[method];
+            if (!setting) return false;
+
+            const transactionDate = new Date(dateStr);
+            const txYear = transactionDate.getFullYear();
+            const txMonth = transactionDate.getMonth(); // 0-11
+            const txDay = transactionDate.getDate();
+
+            // 締め日判定
+            let closingMonth = txMonth;
+            let closingYear = txYear;
+            
+            // 末日締め以外で、日付が締め日を過ぎていたら翌月締め扱い
+            if (setting.closingDay !== 31 && txDay > setting.closingDay) {
+                closingMonth++;
+                if (closingMonth > 11) {
+                    closingMonth = 0;
+                    closingYear++;
+                }
+            }
+
+            // 支払日計算
+            let payMonth = closingMonth + setting.payMonthOffset;
+            let payYear = closingYear;
+            
+            while (payMonth > 11) {
+                payMonth -= 12;
+                payYear++;
+            }
+
+            // 支払年が、取引年（＝申告対象年）より未来なら未払金扱い
+            // ※selectedYearと比較すべきだが、通常入力時は「その年のデータ」を入れている前提
+            // ※厳密には「決算日（12/31）」をまたぐかどうか
+            
+            return payYear > txYear;
+        }
+
+        function fetchData() {
+            updateStatus('データを取得中...');
+            showPageLoader();
+            
+            serverCall('getTransactions')
+            .then((data) => {
+                if (!data) {
+                    throw new Error("サーバーからデータが返ってきませんでした。(Code.gsを確認してください)");
+                }
+                
+                logDebug(`Data fetched: ${data.length} records`);
+                allTransactions = data.map(tx => {
+                    if (tx.business === '動画配信事業') {
+                        tx.business = '動画・玩具小売事業';
+                    }
+                    if (tx.is_settled === 'TRUE' || tx.is_settled === 'true') tx.is_settled = true;
+                    if (tx.is_settled === 'FALSE' || tx.is_settled === 'false') tx.is_settled = false;
+
+                    return {...tx, amount: Number(tx.amount)};
+                });
+                updateDisplay();
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+                showError(error);
+            });
+        }
+
+        function calculateApportionment() {
+            try {
+                const totalAmount = parseFloat(document.getElementById('apportion-total-amount').value) || 0;
+                let totalUsage = parseFloat(apportionTotalUsageInput.value) || 0;
+                const businessUsage = parseFloat(document.getElementById('apportion-business-usage').value) || 0;
+                const basis = apportionBasisSelect.value;
+                
+                const mainAmountInput = document.getElementById('amount');
+                const mainDescriptionInput = document.getElementById('description');
+                
+                if (totalAmount === 0 || totalUsage === 0 || businessUsage === 0) {
+                    mainAmountInput.value = '';
+                    return;
+                }
+
+                let ratio = (basis === 'その他') ? (businessUsage / 100) : (businessUsage / totalUsage);
+                ratio = Math.min(1, Math.max(0, ratio));
+
+                const businessAmount = Math.round(totalAmount * ratio);
+                mainAmountInput.value = businessAmount;
+
+                let cleanDescription = mainDescriptionInput.value.replace(/ \(総額.*円の事業割合.*\)/, '');
+                if (cleanDescription.trim() === '') {
+                    cleanDescription = categorySelect.value;
+                }
+                const apportionmentText = ` (総額${totalAmount.toLocaleString()}円の事業割合${(ratio * 100).toFixed(0)}%[${basis}])`;
+                mainDescriptionInput.value = cleanDescription + apportionmentText;
+            } catch(e) { console.error('Calc error', e); }
+        }
+
+        function checkApportionmentVisibility() {
+            try {
+                const selectedCategory = categorySelect.value;
+                if (typeSelect.value === 'expense' && apportionableCategories.includes(selectedCategory)) {
+                    apportionmentContainer.classList.remove('hidden');
+                } else {
+                    apportionmentContainer.classList.add('hidden');
+                }
+            } catch(e) { console.error('Visibility error', e); }
+        }
+
+        function populateHelpModal() {
+            try {
+                const helpList = document.getElementById('user-category-help');
+                const allCategories = {...userFriendlyExpenseCategories, ...userFriendlyIncomeCategories};
+                helpList.innerHTML = Object.entries(allCategories).map(([key, value]) => `<div class="py-3"><dt class="font-semibold text-slate-900">${key} (→ ${value.formal})</dt><dd class="text-slate-600 mt-1">${value.help || ''}</dd></div>`).join('');
+            } catch(e) { console.error('Help modal error', e); }
+        }
+
+        function populateYearSelector() {
+                    try {
+                        const years = new Set(allTransactions.map(t => new Date(t.date).getFullYear()));
+                        years.add(new Date().getFullYear());
+                        const sortedYears = Array.from(years).sort((a, b) => b - a);
+                        
+                        let html = '<option value="all">全期間（通期）</option>';
+                        html += sortedYears.map(year => `<option value="${year}">${year}年度</option>`).join('');
+                        
+                        yearSelector.innerHTML = html;
+                        yearSelector.value = selectedYear;
+                        const csvDisplay = document.getElementById('csv-year-display');
+                        if(csvDisplay) csvDisplay.textContent = selectedYear === 'all' ? '全' : selectedYear;
+                    } catch(e) { console.error('Year selector error', e); }
+                }
+        
+        function updateStatus(msg) {
+            if (statusDisplay) statusDisplay.textContent = msg;
+            logDebug(`Status: ${msg}`);
+        }
+
+        function updateDisplay() {
+                    logDebug('Updating display...');
+                    try {
+                        populateYearSelector();
+                        populateFilterCategory(); 
+                        
+                        const searchTerm = searchBox.value.toLowerCase();
+                        const selectedCategoryFilter = filterCategorySelect.value;
+
+                        const filteredTransactions = allTransactions
+                            .filter(t => selectedYear === 'all' || new Date(t.date).getFullYear() === selectedYear)
+                            .filter(t => {
+                                const matchDesc = (t.description || '').toLowerCase().includes(searchTerm);
+                                const matchCat = (t.category || '').toLowerCase().includes(searchTerm);
+                                const matchAmt = (t.amount || 0).toString().includes(searchTerm);
+                                return matchDesc || matchCat || matchAmt;
+                            })
+                            .filter(t => {
+                                if (!selectedCategoryFilter) return true;
+                                const cat = getCategoryDisplay(t);
+                                return cat === selectedCategoryFilter;
+                            });
+                        
+                        renderTransactions(filteredTransactions);
+                        renderSummary(allTransactions.filter(t => selectedYear === 'all' || new Date(t.date).getFullYear() === selectedYear)); 
+
+                        if (typeof renderTaxTransactions === 'function') {
+                            renderTaxTransactions(allTransactions.filter(t => selectedYear === 'all' || new Date(t.date).getFullYear() === selectedYear));
+                        }
+                        updateStatus(`表示完了: ${filteredTransactions.length}件 (全${allTransactions.length}件)`);
+                    } catch(e) {
+                        console.error('Update display error', e);
+                        updateStatus('表示エラーが発生しました');
+                    }
+                }
+        
+          function populateFilterCategory() {
+                          const currentVal = filterCategorySelect.value;
+                          const categories = new Set();
+                          allTransactions
+                          .filter(t => selectedYear === 'all' || new Date(t.date).getFullYear() === selectedYear)
+                          .forEach(t => {
+                              const cat = getCategoryDisplay(t);
+                              if(cat) categories.add(cat);
+                          });
+                      
+                          let html = '<option value="">全カテゴリ</option>';
+                          Array.from(categories).sort().forEach(c => {
+                              html += `<option value="${c}">${c}</option>`;
+                          });
+                          filterCategorySelect.innerHTML = html;
+                          filterCategorySelect.value = currentVal;
+                  }
+
+        function setButtonLoading(button, isLoading, originalText = '') {
+            const textSpan = button.querySelector('.btn-text') || button;
+            if (isLoading) {
+                button.disabled = true;
+                button.classList.add('opacity-75', 'cursor-not-allowed');
+                button.dataset.originalText = textSpan.textContent;
+                textSpan.innerHTML = '<span class="loader"></span> 処理中...';
+            } else {
+                button.disabled = false;
+                button.classList.remove('opacity-75', 'cursor-not-allowed');
+                textSpan.textContent = originalText || button.dataset.originalText || '保存';
+            }
+        }
+
+        function showPageLoader() {
+            if (transactionsContainer) {
+                transactionsContainer.innerHTML = '<div class="text-center py-12"><div class="page-loader"></div><p class="text-slate-500 mt-4">データを読み込んでいます...</p></div>';
+            }
+        }
+
+        function showError(error) {
+            console.error(error);
+            updateStatus(`エラー: ${error.message}`);
+            if (transactionsContainer) {
+                transactionsContainer.innerHTML = `<div class="bg-red-50 p-4 rounded text-red-600 border border-red-200 text-center">エラーが発生しました: ${error.message}<br>画面をリロードしてみてください。</div>`;
+            }
+        }
+        
+        function updateFormOptions(formType = 'new') {
+            const isNew = formType === 'new';
+            const type = isNew ? typeSelect.value : document.getElementById('edit-type').value;
+            const category = isNew ? categorySelect : document.getElementById('edit-category');
+            const catWrapper = isNew ? categoryWrapper : document.getElementById('edit-category-wrapper');
+            const method = isNew ? methodSelect : document.getElementById('edit-method');
+            const label = isNew ? methodLabel : document.getElementById('edit-method-label');
+            const appContainer = isNew ? apportionmentContainer : null;
+
+            category.innerHTML = '';
+            method.innerHTML = '';
+            if(appContainer) appContainer.classList.add('hidden'); 
+
+            switch (type) {
+                case 'expense':
+                    catWrapper.style.display = 'block';
+                    category.required = true;
+                    Object.keys(userFriendlyExpenseCategories).forEach(key => category.add(new Option(key, key)));
+                    Object.keys(paymentMethods).forEach(key => method.add(new Option(key, key)));
+                    label.textContent = '支払方法';
+                    break;
+                case 'income':
+                    catWrapper.style.display = 'block';
+                    category.required = true;
+                    Object.keys(userFriendlyIncomeCategories).forEach(key => category.add(new Option(key, key)));
+                    Object.keys(depositMethods).forEach(key => method.add(new Option(key, key)));
+                    label.textContent = '入金方法';
+                    break;
+                // ▼▼▼ 追加：transferの場合 ▼▼▼
+                case 'transfer':
+                    catWrapper.style.display = 'block';
+                    category.required = true;
+                    // 定義した transferCategories を選択肢に追加
+                    Object.keys(transferCategories).forEach(key => category.add(new Option(key, key)));
+                    // 入金先として depositMethods（現金、口座など）を使用
+                    Object.keys(depositMethods).forEach(key => method.add(new Option(key, key)));
+                    label.textContent = '入金先'; // ラベルを変更
+                    break;
+                // ▲▲▲ 追加ここまで ▲▲▲
+                // ▼▼▼ 追加：他勘定振替 ▼▼▼
+                case 'reclass':
+                    catWrapper.style.display = 'block';
+                    category.required = true;
+                    // 増やす経費（借方）
+                    Object.keys(userFriendlyExpenseCategories).forEach(key => category.add(new Option(key, key)));
+                    // 減らす元の科目（貸方）
+                    Object.keys(reclassMethods).forEach(key => method.add(new Option(key, key)));
+                    label.textContent = '振替元 (減らす科目)';
+                    break;
+                // ▲▲▲ 追加ここまで ▲▲▲
+                case 'owner_lending':
+                    catWrapper.style.display = 'none';
+                    category.required = false;
+                    Object.keys(ownerLendingMethods).forEach(key => method.add(new Option(key, key)));
+                    label.textContent = '出金元';
+                    break;
+                case 'owner_borrowing':
+                    catWrapper.style.display = 'none';
+                    category.required = false;
+                    Object.keys(ownerBorrowingMethods).forEach(key => method.add(new Option(key, key)));
+                    label.textContent = '入金先';
+                    break;
+            }
+            
+            if (isNew) {
+                checkApportionmentVisibility();
+            }
+        }
+
+        function populateBusinessSelects() {
+            businessSelect.innerHTML = businessTypes.map(b => `<option value="${b}">${b}</option>`).join('');
+            document.getElementById('edit-business').innerHTML = businessTypes.map(b => `<option value="${b}">${b}</option>`).join('');
+        }
+        
+        // 【仕訳作成ロジックの修正箇所】
+        function createJournalEntry(tx) {
+            let debitAccount, creditAccount;
+            switch(tx.type) {
+                case 'expense':
+                    debitAccount = userFriendlyExpenseCategories[tx.category]?.formal || '雑費';
+                    
+                    // 事業用クレジットカード（楽天）の特例ロジック
+                    if (tx.method === '事業用クレジットカード（楽天）') {
+                        if (tx.is_settled) {
+                            creditAccount = '未払金'; // チェックあり（年またぎ判定）＝未払金
+                        } else {
+                            creditAccount = '普通預金'; // チェックなし（年内判定）＝即時決済扱い
+                        }
+                    } else if (tx.method.startsWith('個人用：')) {
+                        // 個人用カードは常に「事業主借」
+                        creditAccount = '事業主借';
+                    } else {
+                        creditAccount = paymentMethods[tx.method] || '事業主借';
+                    }
+                    break;
+                case 'income':
+                    debitAccount = depositMethods[tx.method];
+                    creditAccount = userFriendlyIncomeCategories[tx.category]?.formal || '売上高';
+                    break;
+                // ▼▼▼ 追加：transferの場合の仕訳ロジック ▼▼▼
+                case 'transfer':
+                    // 借方：入金先（普通預金など）
+                    debitAccount = depositMethods[tx.method] || '普通預金';
+                    // 貸方：何が減ったか（売掛金の減少など）
+                    creditAccount = transferCategories[tx.category]?.formal || '諸口';
+                    break;
+                    // ▼▼▼ 追加：reclassの場合の仕訳ロジック ▼▼▼
+                case 'reclass':
+                    debitAccount = userFriendlyExpenseCategories[tx.category]?.formal || '雑費';
+                    creditAccount = reclassMethods[tx.method] || '仕入高';
+                    break;
+                // ▲▲▲ 追加ここまで ▲▲▲
+                // ▲▲▲ 追加ここまで ▲▲▲
+                case 'owner_lending':
+                    debitAccount = '事業主貸';
+                    if (tx.method === '事業用クレジットカード（楽天）') {
+                        creditAccount = tx.is_settled ? '未払金' : '普通預金';
+                    } else {
+                        creditAccount = ownerLendingMethods[tx.method];
+                    }
+                    break;
+                case 'owner_borrowing':
+                    debitAccount = ownerBorrowingMethods[tx.method] || '現金';
+                    creditAccount = '事業主借';
+                    break;
+            }
+            return { date: tx.date, debitAccount, debitAmount: tx.amount, creditAccount, creditAmount: tx.amount, description: tx.description };
+        }
+        
+          function getCategoryDisplay(tx) {
+              if (tx.category) return tx.category;
+              // ▼▼▼ ここに 'transfer': '資金移動' を追加しました ▼▼▼
+              const typeMap = { 
+                  'owner_lending': '事業主貸', 
+                  'owner_borrowing': '事業主借', 
+                  'expense': '経費', 
+                  'income': '収入',
+                  'transfer': '資金移動',
+                  'reclass': '振替仕訳' // ←★これを追加
+              };
+              // ▲▲▲ 追加ここまで ▲▲▲
+              return typeMap[tx.type] || tx.type;
+          }
+
+function renderTransactions(transactions) {
+            // ▼▼▼ 追加・修正：全体の合計金額（内訳出し） ▼▼▼
+            const totalSumContainer = document.getElementById('total-sum-container');
+            if (totalSumContainer) {
+                if (transactions.length > 0) {
+                    let inc = 0, exp = 0, oth = 0;
+                    transactions.forEach(t => {
+                        const amt = Number(t.amount) || 0;
+                        if (t.type === 'income') inc += amt;
+                        else if (t.type === 'expense') exp += amt;
+                        else oth += amt;
+                    });
+                    
+                    let totalHtml = '';
+                    if (inc > 0) totalHtml += `<span class="text-green-700 bg-green-50 px-3 py-1 rounded-md border border-green-200 shadow-sm">収入: ¥${inc.toLocaleString()}</span>`;
+                    if (exp > 0) totalHtml += `<span class="text-red-700 bg-red-50 px-3 py-1 rounded-md border border-red-200 shadow-sm">経費: ¥${exp.toLocaleString()}</span>`;
+                    if (oth > 0) totalHtml += `<span class="text-slate-600 bg-slate-100 px-3 py-1 rounded-md border border-slate-200 shadow-sm">資金移動等: ¥${oth.toLocaleString()}</span>`;
+                    if (totalHtml === '') totalHtml = `<span class="text-slate-600 font-mono font-bold">¥0</span>`;
+
+                    totalSumContainer.innerHTML = `
+                        <span class="font-bold text-sm flex items-center gap-2 text-blue-800 whitespace-nowrap">
+                            <i data-lucide="calculator" class="h-4 w-4"></i> 表示中の合計
+                        </span>
+                        <div class="flex gap-2 flex-wrap justify-end text-sm font-bold font-mono">
+                            ${totalHtml}
+                        </div>
+                    `;
+                    totalSumContainer.classList.remove('hidden');
+                } else {
+                    totalSumContainer.classList.add('hidden');
+                }
+            }
+            // ▲▲▲ 追加・修正ここまで ▲▲▲
+
+            transactions.sort((a, b) => {
+                if (currentSortOrder === 'date_desc') return new Date(b.date) - new Date(a.date);
+                if (currentSortOrder === 'date_asc') return new Date(a.date) - new Date(b.date);
+                if (currentSortOrder === 'input_desc') return (b.createdAt && a.createdAt) ? new Date(b.createdAt) - new Date(a.createdAt) : new Date(b.date) - new Date(a.date);
+                return 0;
+            });
+
+            if (transactions.length === 0) {
+                const noDataHtml = '<div class="text-center py-12 bg-white rounded-lg border border-slate-200 border-dashed"><p class="text-slate-400">表示するデータがありません。</p></div>';
+                transactionsContainer.innerHTML = noDataHtml;
+                journalBody.innerHTML = '<tr><td colspan="8" class="text-center p-8 text-slate-400">データがありません。</td></tr>';
+                return;
+            }
+
+            const createTable = (txs) => {
+                return `
+                <div class="md:bg-white md:rounded-xl md:shadow-sm md:overflow-hidden border border-slate-200">
+                    <div class="md:overflow-x-auto">
+                        <table class="responsive-table w-full text-sm md:text-left text-slate-500">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th class="px-6 py-3 w-20 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">No.</th>
+                                    <th class="px-6 py-3">日付</th>
+                                    <th class="px-6 py-3">カテゴリ</th>
+                                    <th class="px-6 py-3">摘要</th>
+                                    <th class="px-6 py-3 text-right">金額</th>
+                                    <th class="px-6 py-3">支払方法</th>
+                                    <th class="px-6 py-3 text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-slate-200">
+                                ${txs.map(tx => {
+                                    const noHtml = `<td data-label="No." class="px-6 py-4 text-center whitespace-nowrap text-xs text-slate-400 font-mono no-cell">${tx.details_no || '-'}</td>`;
+                                    return `
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        ${noHtml}
+                                        <td data-label="日付" class="px-6 py-4 whitespace-nowrap"><span class="font-medium">${new Date(tx.date).toLocaleDateString()}</span></td>
+                                        <td data-label="カテゴリ" class="px-6 py-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">${getCategoryDisplay(tx)}</span></td>
+                                        <td data-label="摘要" class="px-6 py-4"><span class="line-clamp-1 text-slate-700">${tx.description}</span></td>
+                                        <td data-label="金額" class="px-6 py-4 text-right font-mono font-bold text-slate-700"><span>¥${Number(tx.amount).toLocaleString()}</span></td>
+                                        <td data-label="支払方法" class="px-6 py-4 text-xs text-slate-500"><span>${tx.method}</span></td>
+                                        <td data-label="" class="px-6 py-4 text-right">
+                                            <div class="flex justify-end items-center gap-2">
+                                                <button data-id="${tx.id}" class="copy-btn p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition" title="複製"><i data-lucide="copy" class="h-4 w-4"></i></button>
+                                                <button data-id="${tx.id}" class="edit-btn p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition" title="編集"><i data-lucide="edit-3" class="h-4 w-4"></i></button>
+                                                <button data-id="${tx.id}" class="delete-btn p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="削除"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            };
+
+            // ▼▼▼ 追加：グループごとの小計バッジを作成するヘルパー関数 ▼▼▼
+            const createSubtotalBadge = (txs) => {
+                let inc = 0, exp = 0, oth = 0;
+                txs.forEach(t => {
+                    const amt = Number(t.amount) || 0;
+                    if (t.type === 'income') inc += amt;
+                    else if (t.type === 'expense') exp += amt;
+                    else oth += amt;
+                });
+                
+                let badges = '';
+                if (inc > 0) badges += `<span class="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">収入 ¥${inc.toLocaleString()}</span>`;
+                if (exp > 0) badges += `<span class="text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">経費 ¥${exp.toLocaleString()}</span>`;
+                if (oth > 0 && inc === 0 && exp === 0) badges += `<span class="text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">計 ¥${oth.toLocaleString()}</span>`;
+                else if (oth > 0) badges += `<span class="text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">他 ¥${oth.toLocaleString()}</span>`;
+                
+                return `<div class="ml-auto flex gap-2 text-xs font-normal whitespace-nowrap overflow-x-auto no-scrollbar">${badges}</div>`;
+            };
+            // ▲▲▲ 追加ここまで ▲▲▲
+
+            let htmlContent = '';
+            
+            if (currentViewMode === 'list') {
+                htmlContent = createTable(transactions);
+            } else if (currentViewMode === 'monthly') {
+                const grouped = {};
+                transactions.forEach(tx => {
+                    const date = new Date(tx.date);
+                    const key = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort((a, b) => {
+                    const da = new Date(a.replace('年', '/').replace('月', '/1'));
+                    const db = new Date(b.replace('年', '/').replace('月', '/1'));
+                    return db - da;
+                });
+                htmlContent = keys.map(key => `
+                    <details class="group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" open>
+                        <summary class="flex items-center p-4 bg-slate-50 cursor-pointer hover:bg-slate-100 transition list-none">
+                            <div class="flex-grow flex items-center gap-2 overflow-hidden">
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2 whitespace-nowrap">
+                                    <i data-lucide="calendar" class="h-4 w-4 text-blue-500"></i> ${key}
+                                    <span class="text-xs font-normal text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">${grouped[key].length}件</span>
+                                </h3>
+                                ${createSubtotalBadge(grouped[key])}
+                            </div>
+                            <span class="transform group-open:rotate-180 transition-transform ml-2 flex-shrink-0"><i data-lucide="chevron-down" class="h-5 w-5 text-slate-400"></i></span>
+                        </summary>
+                        <div class="p-0 border-t border-slate-200">
+                            ${createTable(grouped[key])}
+                        </div>
+                    </details>
+                `).join('');
+            } else if (currentViewMode === 'business') {
+                const grouped = {};
+                transactions.forEach(tx => {
+                    const key = tx.business || '未分類';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort((a,b) => {
+                     if(a === '共通') return -1; if(b === '共通') return 1; return a.localeCompare(b);
+                });
+                htmlContent = keys.map(key => `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap">
+                                <i data-lucide="briefcase" class="h-4 w-4 text-indigo-500"></i> ${key}
+                            </h3>
+                            ${createSubtotalBadge(grouped[key])}
+                        </div>
+                        ${createTable(grouped[key])}
+                    </div>
+                `).join('');
+            } else if (currentViewMode === 'category') {
+                 const grouped = {};
+                transactions.forEach(tx => {
+                    const key = getCategoryDisplay(tx) || '未分類';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort();
+                htmlContent = keys.map(key => `
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between gap-4 mb-2">
+                            <h3 class="font-bold text-slate-700 pl-2 border-l-4 border-blue-500 whitespace-nowrap">${key}</h3>
+                            ${createSubtotalBadge(grouped[key])}
+                        </div>
+                        ${createTable(grouped[key])}
+                    </div>
+                `).join('');
+            } else if (currentViewMode === 'method') {
+                const grouped = {};
+                transactions.forEach(tx => {
+                    const key = tx.method || '未指定';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort();
+                htmlContent = keys.map(key => `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap">
+                                <i data-lucide="credit-card" class="h-4 w-4 text-green-600"></i> ${key}
+                            </h3>
+                            ${createSubtotalBadge(grouped[key])}
+                        </div>
+                        ${createTable(grouped[key])}
+                    </div>
+                `).join('');
+            }
+
+            transactionsContainer.innerHTML = htmlContent;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            attachEventListeners();
+
+            // 仕訳プレビューの生成
+            journalBody.innerHTML = transactions.map(tx => {
+                const entry = createJournalEntry(tx);
+                const isBusinessCard = tx.method === '事業用クレジットカード（楽天）' && (tx.type === 'expense' || tx.type === 'owner_lending');
+                
+                const checkboxHtml = isBusinessCard 
+                    ? `<input type="checkbox" class="settled-checkbox w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" data-id="${tx.id}" ${tx.is_settled ? 'checked' : ''} title="チェックで未払金として計上">`
+                    : `<span class="text-slate-300">-</span>`;
+
+                return `
+                <tr class="md:border-b ${tx.is_settled && isBusinessCard ? 'bg-orange-50' : ''}">
+                    <td class="px-6 py-4 text-center font-mono text-xs text-slate-500" data-label="No.">${tx.details_no || '-'}</td>
+                    <td class="px-6 py-4" data-label="取引日"><span>${new Date(entry.date).toLocaleDateString()}</span></td>
+                    <td class="px-6 py-4 font-medium" data-label="借方勘定科目"><span>${entry.debitAccount}</span></td>
+                    <td class="px-6 py-4 font-mono text-right" data-label="借方金額"><span>${Number(entry.debitAmount).toLocaleString()}</span></td>
+                    <td class="px-6 py-4 font-medium" data-label="貸方勘定科目"><span>${entry.creditAccount}</span></td>
+                    <td class="px-6 py-4 font-mono text-right" data-label="貸方金額"><span>${Number(entry.creditAmount).toLocaleString()}</span></td>
+                    <td class="px-6 py-4" data-label="摘要"><span class="line-clamp-1">${entry.description}</span></td>
+                    <td class="px-6 py-4 text-center" data-label="未払計上">${checkboxHtml}</td>
+                </tr>`;
+            }).join('');
+            
+            // チェックボックスのイベントリスナー設定
+            document.querySelectorAll('.settled-checkbox').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const id = e.target.dataset.id;
+                    const isChecked = e.target.checked;
+                    
+                    serverCall('updateSettledStatus', id, isChecked)
+                        .then(() => {
+                            const tx = allTransactions.find(t => t.id === id);
+                            if (tx) {
+                                tx.is_settled = isChecked;
+                                updateDisplay(); 
+                            }
+                        })
+                        .catch(err => {
+                            alert('更新に失敗しました: ' + err.message);
+                            e.target.checked = !isChecked; // 元に戻す
+                        });
+                });
+            });
+
+            if(currentViewMode === 'list' && typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // ▼▼▼ ここから追加：確定申告ダッシュボードの描画ロジック ▼▼▼
+        function renderTaxTransactions(transactions) {
+            const taxTransactionsContainer = document.getElementById('tax-transactions-container');
+            const taxTotalSumContainer = document.getElementById('tax-total-sum-container');
+            const taxFilterCategorySelect = document.getElementById('tax-filter-category');
+
+            // ▼▼▼ 修正：収入・経費の抽出と、振替仕訳の展開（プラスとマイナスを作る） ▼▼▼
+            let taxTxs = [];
+            const getFormalCategory = (tx, isCredit = false) => {
+                if (isCredit) return reclassMethods[tx.method] || '仕入高';
+                if (tx.type === 'expense' || tx.type === 'reclass') return userFriendlyExpenseCategories[tx.category]?.formal || '雑費';
+                if (tx.type === 'income') return userFriendlyIncomeCategories[tx.category]?.formal || '売上高';
+                return '';
+            };
+
+            transactions.forEach(tx => {
+                if (tx.type === 'income' || tx.type === 'expense') {
+                    taxTxs.push({ ...tx, formalCategory: getFormalCategory(tx) });
+                } else if (tx.type === 'reclass') {
+                    // ① 増やす経費（プラス）
+                    taxTxs.push({ ...tx, type: 'expense', formalCategory: getFormalCategory(tx) });
+                    // ② 減らす仕入（マイナス）
+                    taxTxs.push({ ...tx, id: tx.id + '_credit', type: 'expense', amount: -Number(tx.amount), formalCategory: getFormalCategory(tx, true), category: tx.method, description: tx.description + ' (振替減算)' });
+                }
+            });
+            // ▲▲▲ 修正ここまで ▲▲▲
+
+            // 3. フィルター用のセレクトボックス更新
+            const currentFilter = taxFilterCategorySelect.value;
+            const uniqueCategories = [...new Set(taxTxs.map(tx => tx.formalCategory))].filter(Boolean).sort();
+            taxFilterCategorySelect.innerHTML = '<option value="">全科目</option>' + uniqueCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+            taxFilterCategorySelect.value = currentFilter;
+
+            // 4. フィルター適用
+            if (currentFilter) {
+                taxTxs = taxTxs.filter(tx => tx.formalCategory === currentFilter);
+            }
+
+            // 新しい順でソート
+            taxTxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // 小計バッジの生成関数
+            const createSubtotalBadge = (txs) => {
+                let inc = 0, exp = 0;
+                txs.forEach(t => {
+                    if (t.type === 'income') inc += Number(t.amount) || 0;
+                    else if (t.type === 'expense') exp += Number(t.amount) || 0;
+                });
+                let badges = '';
+                if (inc > 0) badges += `<span class="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 shadow-sm font-mono font-bold">収入 ¥${inc.toLocaleString()}</span>`;
+                if (exp > 0) badges += `<span class="text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 shadow-sm font-mono font-bold">経費 ¥${exp.toLocaleString()}</span>`;
+                if (badges === '') badges = `<span class="text-slate-400 font-mono">¥0</span>`;
+                return `<div class="ml-auto flex gap-2 text-sm whitespace-nowrap overflow-x-auto no-scrollbar">${badges}</div>`;
+            };
+
+            // 全体合計の表示
+            if (taxTxs.length > 0) {
+                taxTotalSumContainer.innerHTML = `
+                    <span class="font-bold text-sm flex items-center gap-2 text-blue-800 whitespace-nowrap">
+                        <i data-lucide="calculator" class="h-4 w-4"></i> 申告用集計
+                    </span>
+                    ${createSubtotalBadge(taxTxs)}
+                `;
+                taxTotalSumContainer.classList.remove('hidden');
+                taxTotalSumContainer.classList.add('flex');
+            } else {
+                taxTotalSumContainer.classList.add('hidden');
+                taxTotalSumContainer.classList.remove('flex');
+            }
+
+            // テーブル生成関数
+            const createTable = (txs) => {
+                if (txs.length === 0) return '<p class="p-4 text-center text-slate-400">データがありません</p>';
+                return `
+                <div class="md:bg-white md:rounded-xl md:shadow-sm md:overflow-hidden border border-slate-200">
+                    <div class="md:overflow-x-auto">
+                        <table class="responsive-table w-full text-sm md:text-left text-slate-500">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th class="px-6 py-3">日付</th>
+                                    <th class="px-6 py-3">勘定科目</th>
+                                    <th class="px-6 py-3">摘要 (元のカテゴリ)</th>
+                                    <th class="px-6 py-3 text-right">金額</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-slate-200">
+                                ${txs.map(tx => `
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td data-label="日付" class="px-6 py-4 whitespace-nowrap"><span class="font-medium">${new Date(tx.date).toLocaleDateString()}</span></td>
+                                    <td data-label="勘定科目" class="px-6 py-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${tx.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${tx.formalCategory}</span></td>
+                                    <td data-label="摘要" class="px-6 py-4"><div class="line-clamp-1 text-slate-700 font-medium">${tx.description}</div><div class="text-xs text-slate-400 mt-1">元: ${tx.category}</div></td>
+                                    <td data-label="金額" class="px-6 py-4 text-right font-mono font-bold ${tx.type === 'income' ? 'text-green-700' : 'text-red-700'}">¥${Number(tx.amount).toLocaleString()}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            };
+
+            let htmlContent = '';
+            
+            if (currentTaxViewMode === 'list') {
+                htmlContent = createTable(taxTxs);
+            } else if (currentTaxViewMode === 'monthly') {
+                const grouped = {};
+                taxTxs.forEach(tx => {
+                    const date = new Date(tx.date);
+                    const key = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort((a, b) => {
+                    const da = new Date(a.replace('年', '/').replace('月', '/1'));
+                    const db = new Date(b.replace('年', '/').replace('月', '/1'));
+                    return db - da; 
+                });
+                htmlContent = keys.map(key => `
+                    <details class="group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-4" open>
+                        <summary class="flex items-center p-4 bg-slate-50 cursor-pointer hover:bg-slate-100 transition list-none">
+                            <div class="flex-grow flex items-center gap-2 overflow-hidden">
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2 whitespace-nowrap">
+                                    <i data-lucide="calendar" class="h-4 w-4 text-blue-500"></i> ${key}
+                                </h3>
+                                ${createSubtotalBadge(grouped[key])}
+                            </div>
+                            <span class="transform group-open:rotate-180 transition-transform ml-2 flex-shrink-0"><i data-lucide="chevron-down" class="h-5 w-5 text-slate-400"></i></span>
+                        </summary>
+                        <div class="p-0 border-t border-slate-200">
+                            ${createTable(grouped[key])}
+                        </div>
+                    </details>
+                `).join('');
+            } else if (currentTaxViewMode === 'business') {
+                const grouped = {};
+                taxTxs.forEach(tx => {
+                    const key = tx.business || '未分類';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort();
+                htmlContent = keys.map(key => `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap">
+                                <i data-lucide="briefcase" class="h-4 w-4 text-indigo-500"></i> ${key}
+                            </h3>
+                            ${createSubtotalBadge(grouped[key])}
+                        </div>
+                        ${createTable(grouped[key])}
+                    </div>
+                `).join('');
+            } else if (currentTaxViewMode === 'category') {
+                const grouped = {};
+                taxTxs.forEach(tx => {
+                    const key = tx.formalCategory;
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(tx);
+                });
+                const keys = Object.keys(grouped).sort();
+                htmlContent = keys.map(key => `
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between gap-4 mb-2">
+                            <h3 class="font-bold text-slate-700 pl-2 border-l-4 border-blue-500 whitespace-nowrap">${key}</h3>
+                            ${createSubtotalBadge(grouped[key])}
+                        </div>
+                        ${createTable(grouped[key])}
+                    </div>
+                `).join('');
+            }
+
+            if (taxTxs.length === 0) {
+                htmlContent = '<div class="text-center py-12 bg-white rounded-lg border border-slate-200 border-dashed"><p class="text-slate-400">該当する申告データがありません。</p></div>';
+            }
+
+            document.getElementById('tax-transactions-container').innerHTML = htmlContent;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        // ▲▲▲ ここまで追加 ▲▲▲
+
+function renderSummary(transactions) {
+            const monthlyContainer = document.getElementById('monthly-summary-container');
+            const categoryContainer = document.getElementById('category-summary-container');
+            const businessContainer = document.getElementById('business-summary-container');
+            const noDataHtml = '<p class="text-center p-8 text-slate-400">集計対象のデータがありません。</p>';
+
+            let summaryTransactions;
+            if (selectedBusinessForSummary === 'プライベート') {
+                summaryTransactions = transactions.filter(tx => tx.business === 'プライベート');
+            } else if (selectedBusinessForSummary === '全体') {
+                summaryTransactions = transactions.filter(tx => tx.business !== 'プライベート');
+            } else {
+                summaryTransactions = transactions.filter(tx => 
+                    tx.business === selectedBusinessForSummary || tx.business === '共通'
+                );
+            }
+
+            // ▼▼▼ 追加：振替仕訳をプラスとマイナスの2行に展開する ▼▼▼
+            let expandedSummaryTxs = [];
+            summaryTransactions.forEach(tx => {
+                if (tx.type === 'reclass') {
+                    expandedSummaryTxs.push({ ...tx, type: 'expense' }); // プラス（経費増）
+                    expandedSummaryTxs.push({ ...tx, type: 'expense', amount: -Number(tx.amount), category: tx.method }); // マイナス（仕入減）
+                } else {
+                    expandedSummaryTxs.push(tx);
+                }
+            });
+            summaryTransactions = expandedSummaryTxs;
+            // ▲▲▲ 追加ここまで ▲▲▲
+
+            if (summaryTransactions.length === 0) {
+                monthlyContainer.innerHTML = noDataHtml;
+            } else {
+                const monthlySummary = Array(12).fill(null).map(() => ({ income: 0, expense: 0 }));
+                const monthlyExpenseDetails = Array(12).fill(null).map(() => ({}));
+                const monthlyIncomeDetails = Array(12).fill(null).map(() => ({}));
+
+                summaryTransactions.forEach(tx => {
+                    const month = new Date(tx.date).getMonth();
+                    
+                    let calcAmount = tx.amount;
+                    if (selectedBusinessForSummary !== '全体' && selectedBusinessForSummary !== 'プライベート' && tx.business === '共通') {
+                        calcAmount = Math.round(tx.amount / 2);
+                    }
+
+                    if (tx.type === 'income') {
+                        monthlySummary[month].income += calcAmount;
+                        if (tx.category) {
+                            if (!monthlyIncomeDetails[month][tx.category]) monthlyIncomeDetails[month][tx.category] = 0;
+                            monthlyIncomeDetails[month][tx.category] += calcAmount;
+                        }
+                    } else if (tx.type === 'expense') {
+                        monthlySummary[month].expense += calcAmount;
+                        if (tx.category) {
+                            if (!monthlyExpenseDetails[month][tx.category]) monthlyExpenseDetails[month][tx.category] = 0;
+                            monthlyExpenseDetails[month][tx.category] += calcAmount;
+                        }
+                    }
+                });
+
+                let monthlyTableHTML = `<table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-100"><tr><th scope="col" class="px-4 py-3 w-8"></th><th scope="col" class="px-4 py-3">月</th><th scope="col" class="px-4 py-3 text-right">収入</th><th scope="col" class="px-4 py-3 text-right">経費</th><th scope="col" class="px-4 py-3 text-right">差額</th></tr></thead><tbody>`;
+                
+                const totalIncome = monthlySummary.reduce((a, s) => a + s.income, 0);
+                const totalExpense = monthlySummary.reduce((a, s) => a + s.expense, 0);
+                const totalProfit = totalIncome - totalExpense;
+
+                monthlySummary.forEach((s, i) => {
+                    const profit = s.income - s.expense;
+                    const hasExpenseDetails = Object.keys(monthlyExpenseDetails[i]).length > 0;
+                    const hasIncomeDetails = Object.keys(monthlyIncomeDetails[i]).length > 0;
+                    const isExpandable = hasExpenseDetails || hasIncomeDetails;
+
+                    monthlyTableHTML += `<tr class="border-b ${isExpandable ? 'cursor-pointer monthly-summary-row' : ''}" data-month="${i}">
+                        <td class="px-4 py-3 text-center">${isExpandable ? '<svg class="w-4 h-4 text-slate-500 expand-icon transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>' : ''}</td>
+                        <td class="px-4 py-3 font-medium text-slate-900">${i + 1}月</td>
+                        <td class="px-4 py-3 font-mono text-right text-green-600">${s.income.toLocaleString()}</td>
+                        <td class="px-4 py-3 font-mono text-right text-red-600">${s.expense.toLocaleString()}</td>
+                        <td class="px-4 py-3 font-mono text-right ${profit >= 0 ? 'text-slate-800' : 'text-red-600'}">${profit.toLocaleString()}</td>
+                    </tr>`;
+                    
+                    if (isExpandable) {
+                        const sortedExpenseDetails = Object.entries(monthlyExpenseDetails[i]).sort(([, a], [, b]) => b - a);
+                        const sortedIncomeDetails = Object.entries(monthlyIncomeDetails[i]).sort(([, a], [, b]) => b - a);
+                        
+                        monthlyTableHTML += `<tr class="hidden month-detail-row bg-slate-50" data-detail-month="${i}">
+                            <td colspan="5" class="p-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    ${hasIncomeDetails ? `
+                                        <div>
+                                            <h4 class="text-sm font-semibold mb-2 text-slate-600">${i + 1}月の収入内訳</h4>
+                                            <table class="w-full text-xs"><tbody>
+                                                ${sortedIncomeDetails.map(([cat, amt]) => `<tr class="border-b border-slate-200 last:border-b-0"><td class="py-2 pr-2 category-drilldown" data-month="${i}" data-category="${cat}" data-type="income">${cat}</td><td class="py-2 pl-2 font-mono text-right">${amt.toLocaleString()}円</td></tr>`).join('')}
+                                            </tbody></table>
+                                        </div>
+                                    ` : '<div></div>'}
+                                    ${hasExpenseDetails ? `
+                                        <div>
+                                            <h4 class="text-sm font-semibold mb-2 text-slate-600">${i + 1}月の経費内訳</h4>
+                                            <table class="w-full text-xs"><tbody>
+                                                ${sortedExpenseDetails.map(([cat, amt]) => `<tr class="border-b border-slate-200 last:border-b-0"><td class="py-2 pr-2 category-drilldown" data-month="${i}" data-category="${cat}" data-type="expense">${cat}</td><td class="py-2 pl-2 font-mono text-right">${amt.toLocaleString()}円</td></tr>`).join('')}
+                                            </tbody></table>
+                                        </div>
+                                    ` : '<div></div>'}
+                                </div>
+                            </td>
+                        </tr>`;
+                    }
+                });
+
+                monthlyTableHTML += `<tr class="bg-slate-100 font-semibold"><td class="px-4 py-3" colspan="2">合計</td><td class="px-4 py-3 font-mono text-right text-green-600">${totalIncome.toLocaleString()}</td><td class="px-4 py-3 font-mono text-right text-red-600">${totalExpense.toLocaleString()}</td><td class="px-4 py-3 font-mono text-right ${totalProfit >= 0 ? 'text-slate-800' : 'text-red-600'}">${totalProfit.toLocaleString()}</td></tr>`;
+                monthlyTableHTML += '</tbody></table>';
+                monthlyContainer.innerHTML = monthlyTableHTML;
+            }
+
+            const expenseTransactions = summaryTransactions.filter(tx => tx.type === 'expense');
+            if (expenseTransactions.length === 0) {
+                categoryContainer.innerHTML = noDataHtml;
+            } else {
+                const categorySummary = {};
+                let totalExpense = 0;
+
+                expenseTransactions.forEach(tx => {
+                    let calcAmount = tx.amount;
+                    if (selectedBusinessForSummary !== '全体' && selectedBusinessForSummary !== 'プライベート' && tx.business === '共通') {
+                        calcAmount = Math.round(tx.amount / 2);
+                    }
+
+                    if (tx.category && !categorySummary[tx.category]) categorySummary[tx.category] = 0;
+                    if(tx.category) {
+                        categorySummary[tx.category] += calcAmount;
+                        totalExpense += calcAmount;
+                    }
+                });
+                const sortedCategories = Object.entries(categorySummary).sort(([, a], [, b]) => b - a);
+                
+                const categoryTable = `<table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-100"><tr><th scope="col" class="px-4 py-3">経費カテゴリ</th><th scope="col" class="px-4 py-3 text-right">金額</th><th scope="col" class="px-4 py-3 text-right">割合</th></tr></thead><tbody>${sortedCategories.map(([c,a])=>{const p=totalExpense>0?((a/totalExpense)*100).toFixed(1):0;return `<tr class="border-b"><td class="px-4 py-3 font-medium text-slate-900">${c}</td><td class="px-4 py-3 font-mono text-right">${a.toLocaleString()}</td><td class="px-4 py-3 font-mono text-right">${p}%</td></tr>`}).join('')}<tr class="bg-slate-50 font-semibold"><td class="px-4 py-3">合計</td><td class="px-4 py-3 font-mono text-right">${totalExpense.toLocaleString()}</td><td class="px-4 py-3 font-mono text-right">100.0%</td></tr></tbody></table>`;
+                categoryContainer.innerHTML = categoryTable;
+            }
+
+            if (summaryTransactions.length === 0) {
+                businessContainer.innerHTML = noDataHtml;
+            } else {
+                const businessSummary = {};
+                businessTypes.forEach(b => { businessSummary[b] = { income: 0, expense: 0, lending: 0, borrowing: 0 }; });
+                
+                summaryTransactions.forEach(tx => {
+                    const business = tx.business || "共通";
+                    if (!businessSummary[business]) businessSummary[business] = { income: 0, expense: 0, lending: 0, borrowing: 0 };
+                    
+                    if (tx.type === 'income') businessSummary[business].income += tx.amount;
+                    else if (tx.type === 'expense') businessSummary[business].expense += tx.amount;
+                    else if (tx.type === 'owner_lending') businessSummary[business].lending += tx.amount;
+                    else if (tx.type === 'owner_borrowing') businessSummary[business].borrowing += tx.amount;
+                });
+                
+                const businessTable = `<table class="w-full text-sm text-left text-slate-500">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                        <tr>
+                            <th scope="col" class="px-4 py-3">事業</th>
+                            <th scope="col" class="px-4 py-3 text-right">収入</th>
+                            <th scope="col" class="px-4 py-3 text-right">経費</th>
+                            <th scope="col" class="px-4 py-3 text-right">事業主貸</th>
+                            <th scope="col" class="px-4 py-3 text-right">事業主借</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    ${Object.entries(businessSummary).map(([b,s])=>{
+                        return `<tr class="border-b">
+                            <td class="px-4 py-3 font-medium text-slate-900">${b}</td>
+                            <td class="px-4 py-3 font-mono text-right text-green-600">${s.income.toLocaleString()}</td>
+                            <td class="px-4 py-3 font-mono text-right text-red-600">${s.expense.toLocaleString()}</td>
+                            <td class="px-4 py-3 font-mono text-right text-orange-600">${s.lending.toLocaleString()}</td>
+                            <td class="px-4 py-3 font-mono text-right text-blue-600">${s.borrowing.toLocaleString()}</td>
+                        </tr>`
+                    }).join('')}
+                    </tbody>
+                </table>`;
+                businessContainer.innerHTML = businessTable;
+            }
+        }
+        
+        function showDrilldown(month, category, type) {
+                    const year = selectedYear;
+                    const drilldownTxs = allTransactions.filter(tx => {
+                        const txDate = new Date(tx.date);
+                        const isMatchBasic = (year === 'all' || txDate.getFullYear() === year) && txDate.getMonth() === parseInt(month) && tx.category === category && tx.type === type;
+                        if (!isMatchBasic) return false;
+
+                        if (selectedBusinessForSummary === '全体') {
+                            return tx.business !== 'プライベート';
+                        } else if (selectedBusinessForSummary === 'プライベート') {
+                            return tx.business === 'プライベート';
+                        } else {
+                            return tx.business === selectedBusinessForSummary || tx.business === '共通';
+                        }
+                    });
+                    
+                    document.getElementById('drilldown-title').textContent = `${category}`;
+                    document.getElementById('drilldown-subtitle').textContent = `${year === 'all' ? '全期間' : year + '年'}${parseInt(month)+1}月 - ${drilldownTxs.length}件`;
+                    
+                    const tbody = document.getElementById('drilldown-body');
+                    let total = 0;
+                    
+                    tbody.innerHTML = drilldownTxs.map(tx => {
+                        let displayAmount = tx.amount;
+                        if (selectedBusinessForSummary !== '全体' && selectedBusinessForSummary !== 'プライベート' && tx.business === '共通') {
+                            displayAmount = Math.round(tx.amount / 2);
+                        }
+                        total += displayAmount;
+                        
+                        return `<tr>
+                            <td class="px-4 py-2">${new Date(tx.date).toLocaleDateString()}</td>
+                            <td class="px-4 py-2">${tx.description}</td>
+                            <td class="px-4 py-2 text-right font-mono">${displayAmount.toLocaleString()}</td>
+                            <td class="px-4 py-2 text-right">${tx.business}</td>
+                        </tr>`;
+                    }).join('');
+                    
+                    document.getElementById('drilldown-total').textContent = total.toLocaleString() + '円';
+                    drilldownModal.classList.remove('hidden');
+                    drilldownModal.classList.add('flex');
+                }
+
+        function attachEventListeners() {
+            document.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', (e) => {
+                transactionToDeleteId = e.currentTarget.dataset.id;
+                deleteModal.classList.remove('hidden'); deleteModal.classList.add('flex');
+            }));
+            
+            document.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', (e) => {
+                const idToEdit = e.currentTarget.dataset.id;
+                const tx = allTransactions.find(t => t.id === idToEdit);
+                if (tx) {
+                    transactionToEdit = tx;
+                    document.getElementById('edit-id').value = tx.id;
+                    document.getElementById('edit-date').value = tx.date.split('T')[0];
+                    document.getElementById('edit-description').value = tx.description;
+                    document.getElementById('edit-amount').value = tx.amount;
+                    document.getElementById('edit-type').innerHTML = `<option value="expense">経費</option><option value="income">収入</option><option value="transfer">資金移動・回収</option><option value="owner_lending">事業主貸</option><option value="owner_borrowing">事業主借</option><option value="reclass">他勘定振替</option>`;
+                    document.getElementById('edit-type').value = tx.type;
+                    document.getElementById('edit-business').value = tx.business || "共通";
+                    updateFormOptions('edit');
+                    if (tx.category) document.getElementById('edit-category').value = tx.category;
+                    document.getElementById('edit-method').value = tx.method;
+                    editModal.classList.remove('hidden'); 
+                    editModal.classList.add('flex');
+                }
+            }));
+
+            document.querySelectorAll('.copy-btn').forEach(b => b.addEventListener('click', (e) => {
+                const idToCopy = e.currentTarget.dataset.id;
+                const tx = allTransactions.find(t => t.id === idToCopy);
+                if (tx) {
+                    dateInput.value = tx.date.split('T')[0];
+                    document.getElementById('description').value = tx.description;
+                    document.getElementById('amount').value = tx.amount;
+                    typeSelect.value = tx.type;
+                    businessSelect.value = tx.business || "共通";
+                    updateFormOptions('new');
+                    if (tx.category) categorySelect.value = tx.category;
+                    methodSelect.value = tx.method;
+                    
+                    // 修正後
+                    toggleInputModal(true);
+                }
+            }));
+        }
+
+        function formatFreewayDate(dateObj) {
+            const year = dateObj.getFullYear();
+            const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+            const day = dateObj.getDate().toString().padStart(2, '0');
+            let freewayYear;
+            if (year >= 2019) { freewayYear = (year - 2019) + 31; } 
+            else if (year >= 1989) { freewayYear = year - 1988; }
+            else { freewayYear = year - 1925; }
+            return `${freewayYear.toString().padStart(2, '0')}${month}${day}`;
+        }
+
+        function generateFreewayCsv() {
+            try {
+                if (selectedYear === 'all') {
+                    return alert('【エラー】CSV出力は特定の年度を選択している時のみ可能です。上のプルダウンから出力したい年度を選んでください。');
+                }
+                const filteredTransactions = allTransactions.filter(t => new Date(t.date).getFullYear() === selectedYear);
+                
+                const csvRows = filteredTransactions.map(tx => {
+                    const entry = createJournalEntry(tx);
+                    const debitCode = accountCodeMap[entry.debitAccount] || '';
+                    const creditCode = accountCodeMap[entry.creditAccount] || '';
+                    const freewayDate = formatFreewayDate(new Date(entry.date));
+
+                    const row = Array(17).fill('');
+                    row[0] = tx.details_no || '0';
+                    row[3] = freewayDate;
+                    row[4] = debitCode;
+                    row[5] = (entry.debitAccount || '').substring(0, 4);
+                    row[7] = creditCode;
+                    row[8] = (entry.creditAccount || '').substring(0, 4);
+                    row[10] = (entry.debitAmount || 0).toString().padStart(11, '0');
+                    row[11] = (entry.description || '').substring(0, 32);
+                    row[15] = '0';
+                    return row.join(',');
+                });
+
+                const csvContent = csvRows.join('\r\n');
+                const sjisArray = Encoding.convert(Encoding.stringToCode(csvContent), { to: 'SJIS', from: 'AUTO' });
+                const uint8Array = new Uint8Array(sjisArray);
+                const blob = new Blob([uint8Array], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `KAI0000-Shiwake_${selectedYear}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch(e) { console.error('CSV error', e); alert('CSV作成中にエラーが発生しました'); }
+        }
+    </script>
+</body>
+</html>
